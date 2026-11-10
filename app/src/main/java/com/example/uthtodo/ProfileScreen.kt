@@ -4,7 +4,6 @@ import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -32,9 +30,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -48,18 +44,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.uthtodo.components.AppBackgroundLight
 import com.example.uthtodo.components.AppPrimaryBlue
 import com.example.uthtodo.components.TextDark
-import com.example.uthtodo.components.TextGray
 import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.launch
@@ -71,64 +69,78 @@ fun ProfileScreen(
     onLogoutClick: () -> Unit,
     onBackClick: () -> Unit
 ) {
-    val user = Firebase.auth.currentUser
+    val currentUser = try { Firebase.auth.currentUser } catch (e: Exception) { null }
     val context = LocalContext.current
     val webClientId = stringResource(R.string.default_web_client_id)
     val scope = rememberCoroutineScope()
-    var isGoogleLinked by remember { mutableStateOf(user?.isAnonymous == false) }
 
-    val dn = user?.displayName
-    val em = user?.email
-    var name by remember { mutableStateOf(if (dn.isNullOrBlank()) "Minh Anh" else dn) }
-    var email by remember { mutableStateOf(if (em.isNullOrBlank()) "minhanh@example.com" else em) }
+    var isGoogleLinked by remember { mutableStateOf(currentUser != null && !currentUser.isAnonymous) }
 
-    // Thống kê động từ TaskViewModel
+    val dn = currentUser?.displayName
+    val em = currentUser?.email
+    val isAnonymous = currentUser?.isAnonymous ?: true
+
+    var name by remember {
+        mutableStateOf(
+            if (isAnonymous || dn.isNullOrBlank()) "Khách" else dn
+        )
+    }
+    var emailSubtitle by remember {
+        mutableStateOf(
+            if (isAnonymous || em.isNullOrBlank()) "Chưa liên kết tài khoản" else em
+        )
+    }
+
+    // Dynamic stats from TaskViewModel
     val totalDone by taskViewModel.totalDoneCount.collectAsStateWithLifecycle()
     val totalPending by taskViewModel.totalPendingCount.collectAsStateWithLifecycle()
     val completionRate by taskViewModel.completionRate.collectAsStateWithLifecycle()
 
-    // Lấy ký tự viết tắt đại diện Avatar (ví dụ "Minh Anh" -> "MA")
-    val avatarInitials = remember(name) {
-        val parts = name.trim().split(" ")
-        if (parts.size >= 2) {
-            "${parts.first().first().uppercaseChar()}${parts.last().first().uppercaseChar()}"
-        } else if (name.isNotEmpty()) {
-            name.take(1).uppercase()
+    val avatarInitial = remember(name, isAnonymous) {
+        if (isAnonymous || name == "Khách") {
+            "K"
         } else {
-            "MA"
+            val parts = name.trim().split(" ")
+            if (parts.size >= 2) {
+                "${parts.first().first().uppercaseChar()}${parts.last().first().uppercaseChar()}"
+            } else if (name.isNotEmpty()) {
+                name.take(1).uppercase()
+            } else {
+                "K"
+            }
         }
     }
 
     Scaffold(
-        containerColor = AppBackgroundLight,
+        containerColor = Color(0xFFF8FAFC),
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Hồ sơ", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
+                title = { Text("Hồ sơ", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextDark) },
                 navigationIcon = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .clickable { onBackClick() }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Quay lại",
+                            contentDescription = "Cài đặt",
                             tint = AppPrimaryBlue,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(2.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "Cài đặt",
-                            fontSize = 14.sp,
+                            fontSize = 15.sp,
                             color = AppPrimaryBlue,
                             fontWeight = FontWeight.Medium
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = AppBackgroundLight
+                    containerColor = Color(0xFFF8FAFC)
                 )
             )
         },
@@ -137,7 +149,7 @@ fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 OutlinedButton(
@@ -145,7 +157,7 @@ fun ProfileScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     border = BorderStroke(1.dp, Color(0xFFFEE2E2)),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = Color.White,
@@ -155,13 +167,15 @@ fun ProfileScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Logout,
                         contentDescription = "Đăng xuất",
-                        modifier = Modifier.size(18.dp)
+                        tint = Color(0xFFEF4444),
+                        modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Đăng xuất",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
+                        fontSize = 16.sp,
+                        color = Color(0xFFEF4444)
                     )
                 }
             }
@@ -173,45 +187,47 @@ fun ProfileScreen(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // 1. Avatar tròn chữ viết tắt (MA)
+            // 1. Avatar tròn với chữ viết tắt ("K" cho Khách)
             Box(
                 modifier = Modifier
-                    .size(90.dp)
+                    .size(88.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFEFF6FF))
-                    .border(2.dp, Color(0xFFDBEAFE), CircleShape),
+                    .background(Color(0xFFEBF3FF)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = avatarInitials,
+                    text = avatarInitial,
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
                     color = AppPrimaryBlue
                 )
             }
 
-            // 2. Họ tên & Email
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = name,
-                    color = TextDark,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = email,
-                    color = TextGray,
-                    fontSize = 13.sp
-                )
-            }
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // 3. Trạng thái liên kết Google
+            // 2. Họ tên & Trạng thái tài khoản
+            Text(
+                text = name,
+                color = TextDark,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = emailSubtitle,
+                color = Color(0xFF6B7280),
+                fontSize = 14.sp
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 3. Nút Liên kết Google hoặc Badge đã liên kết
             if (isGoogleLinked) {
                 Box(
                     modifier = Modifier
@@ -229,7 +245,7 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "Đã liên kết tài khoản Google",
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = Color(0xFF059669)
                         )
@@ -242,80 +258,117 @@ fun ProfileScreen(
                             try {
                                 val token = getGoogleToken(context, webClientId)
                                 val credential = GoogleAuthProvider.getCredential(token, null)
-                                Firebase.auth.currentUser?.linkWithCredential(credential)
-                                    ?.addOnCompleteListener { task ->
-                                        if (task.isSuccessful) {
-                                            isGoogleLinked = true
-                                            val u = task.result.user
-                                            name = u?.displayName.takeUnless { it.isNullOrBlank() } ?: "Minh Anh"
-                                            email = u?.email.takeUnless { it.isNullOrBlank() } ?: "minhanh@example.com"
-                                            Toast.makeText(context, "Đã liên kết tài khoản Google", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Log.e("AUTH", "lỗi liên kết: ${task.exception?.message}")
-                                            Toast.makeText(context, "Liên kết thất bại", Toast.LENGTH_SHORT).show()
+                                val auth = try { Firebase.auth } catch (e: Exception) { null }
+                                val user = auth?.currentUser
+
+                                if (user != null && user.isAnonymous) {
+                                    // Link current anonymous user with Google credential
+                                    user.linkWithCredential(credential)
+                                        .addOnCompleteListener { task ->
+                                            if (task.isSuccessful) {
+                                                isGoogleLinked = true
+                                                val u = task.result.user
+                                                name = u?.displayName.takeUnless { it.isNullOrBlank() } ?: "Tài khoản Google"
+                                                emailSubtitle = u?.email.takeUnless { it.isNullOrBlank() } ?: ""
+                                                Toast.makeText(context, "Đã liên kết tài khoản Google thành công", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                val ex = task.exception
+                                                Log.e("AUTH", "Lỗi linkWithCredential: ${ex?.message}")
+                                                if (ex is FirebaseAuthUserCollisionException) {
+                                                    // Account is already associated with Google -> Sign in directly to that Google account
+                                                    auth.signInWithCredential(credential)
+                                                        .addOnCompleteListener { signInTask ->
+                                                            if (signInTask.isSuccessful) {
+                                                                isGoogleLinked = true
+                                                                val u = signInTask.result.user
+                                                                name = u?.displayName.takeUnless { it.isNullOrBlank() } ?: "Tài khoản Google"
+                                                                emailSubtitle = u?.email.takeUnless { it.isNullOrBlank() } ?: ""
+                                                                Toast.makeText(context, "Đã chuyển sang tài khoản Google", Toast.LENGTH_SHORT).show()
+                                                            } else {
+                                                                Toast.makeText(context, "Lỗi đăng nhập: ${signInTask.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
+                                                            }
+                                                        }
+                                                } else {
+                                                    Toast.makeText(context, "Liên kết thất bại: ${ex?.localizedMessage}", Toast.LENGTH_LONG).show()
+                                                }
+                                            }
                                         }
-                                    }
+                                } else if (auth != null) {
+                                    // Sign in directly with Google credential
+                                    auth.signInWithCredential(credential)
+                                        .addOnCompleteListener { task ->
+                                            if (task.isSuccessful) {
+                                                isGoogleLinked = true
+                                                val u = task.result.user
+                                                name = u?.displayName.takeUnless { it.isNullOrBlank() } ?: "Tài khoản Google"
+                                                emailSubtitle = u?.email.takeUnless { it.isNullOrBlank() } ?: ""
+                                                Toast.makeText(context, "Đăng nhập Google thành công", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "Đăng nhập thất bại: ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                }
                             } catch (e: Exception) {
-                                Log.e("AUTH", "lỗi: Google: ${e.message}")
+                                Log.e("AUTH", "Lỗi Google Sign-In: ${e.message}", e)
+                                Toast.makeText(context, "Lỗi Google Sign-In: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
                             }
                         }
                     },
+                    modifier = Modifier.height(44.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AppPrimaryBlue)
+                    border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.White,
+                        contentColor = Color(0xFF1F2937)
+                    )
                 ) {
-                    Text("Liên kết Google", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = "Liên kết Google",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF1F2937)
+                    )
                 }
             }
 
-            // 4. Thống kê 3 cột: Việc đã xong | Đang chờ | Hoàn thành
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 4. Thống kê 3 Thẻ side-by-side: Việc đã xong | Đang chờ | Hoàn thành
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                StatCard(
+                    modifier = Modifier.weight(1f),
+                    number = totalDone.toString(),
+                    label = "Việc đã xong"
+                )
+                StatCard(
+                    modifier = Modifier.weight(1f),
+                    number = totalPending.toString(),
+                    label = "Đang chờ"
+                )
+                StatCard(
+                    modifier = Modifier.weight(1f),
+                    number = "$completionRate%",
+                    label = "Hoàn thành"
+                )
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // 5. Thẻ Biểu đồ tuần này
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 18.dp, horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(20.dp)
                 ) {
-                    StatColumn(
-                        number = totalDone.toString(),
-                        label = "Việc đã xong"
-                    )
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(36.dp)
-                            .background(Color(0xFFF3F4F6))
-                    )
-                    StatColumn(
-                        number = totalPending.toString(),
-                        label = "Đang chờ"
-                    )
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(36.dp)
-                            .background(Color(0xFFF3F4F6))
-                    )
-                    StatColumn(
-                        number = "$completionRate%",
-                        label = "Hoàn thành"
-                    )
-                }
-            }
-
-            // 5. Biểu đồ việc xong mỗi ngày trong tuần
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -323,24 +376,24 @@ fun ProfileScreen(
                     ) {
                         Text(
                             text = "Tuần này",
-                            fontSize = 14.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextDark
                         )
                         Text(
                             text = "Việc xong mỗi ngày",
                             fontSize = 12.sp,
-                            color = TextGray
+                            color = Color(0xFF9CA3AF)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(28.dp))
 
-                    // 7 cột biểu đồ
+                    // 7 cột đại diện T2, T3, T4, T5, T6, T7, CN
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(90.dp),
+                            .height(100.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.Bottom
                     ) {
@@ -360,28 +413,38 @@ fun ProfileScreen(
                                 verticalArrangement = Arrangement.Bottom,
                                 modifier = Modifier.weight(1f)
                             ) {
-                                val barHeight = when (count) {
-                                    1 -> 36.dp
-                                    2 -> 62.dp
-                                    else -> 6.dp
+                                if (count > 0) {
+                                    val barHeight = when (count) {
+                                        1 -> 44.dp
+                                        2 -> 68.dp
+                                        else -> 80.dp
+                                    }
+                                    val barColor = if (day == "T2") Color(0xFF93C5FD) else AppPrimaryBlue
+
+                                    Box(
+                                        modifier = Modifier
+                                            .width(20.dp)
+                                            .height(barHeight)
+                                            .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
+                                            .background(barColor)
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(18.dp)
+                                            .height(8.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFFE5E7EB))
+                                    )
                                 }
-                                val barColor = if (count > 0) AppPrimaryBlue else Color(0xFFE5E7EB)
 
-                                Box(
-                                    modifier = Modifier
-                                        .width(18.dp)
-                                        .height(barHeight)
-                                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
-                                        .background(barColor)
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
 
                                 Text(
                                     text = day,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = TextGray
+                                    fontSize = 12.sp,
+                                    fontWeight = if (day == "T3") FontWeight.Bold else FontWeight.Medium,
+                                    color = if (day == "T3") TextDark else Color(0xFF9CA3AF)
                                 )
                             }
                         }
@@ -389,28 +452,52 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
 @Composable
-private fun StatColumn(
+private fun StatCard(
+    modifier: Modifier = Modifier,
     number: String,
     label: String
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = number,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = TextDark
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = TextGray
-        )
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 18.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = number,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextDark
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                color = Color(0xFF6B7280)
+            )
+        }
     }
+}
+
+@Preview(name = "Profile Screen Anonymous Preview", showBackground = true, widthDp = 360, heightDp = 740)
+@Composable
+fun ProfileScreenAnonymousPreview() {
+    val taskViewModel: TaskViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    ProfileScreen(
+        taskViewModel = taskViewModel,
+        onLogoutClick = {},
+        onBackClick = {}
+    )
 }
